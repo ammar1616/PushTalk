@@ -1,5 +1,6 @@
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import AppError, error_response
 from app.core.logging import setup_logging
+from app.db.session import engine
 
 setup_logging()
 
-app = FastAPI(title="PushTalk")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Runs once on startup, once on shutdown. Closing the engine on the way out
+    # is what lets Docker stop the container without hanging on open sockets.
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="PushTalk", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
