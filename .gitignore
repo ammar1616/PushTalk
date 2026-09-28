@@ -1,0 +1,14 @@
+.env
+node_modules
+__pycache__
+*.pyc
+.venv
+dist
+build
+media/
+
+# my own per-commit write-ups, not part of the deliverable
+commit-notes/
+
+# the assignment PDF, not part of the deliverable
+*.pdf
