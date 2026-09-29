@@ -104,10 +104,10 @@ async def validate_audio(path: Path) -> float:
     return duration
 
 
-def normalize_audio(source: Path, message_id: uuid.UUID) -> Path:
+async def normalize_audio(source: Path, message_id: uuid.UUID) -> Path:
     """Transcode to mono 48kHz Opus in an OGG container."""
     target = normalized_path(message_id)
-    _run(
+    await _run(
         [
             "ffmpeg", "-y", "-v", "error",
             "-i", str(source),
@@ -122,15 +122,15 @@ def normalize_audio(source: Path, message_id: uuid.UUID) -> Path:
     return target
 
 
-def waveform_peaks(path: Path, buckets: int = 64) -> list[float]:
+async def waveform_peaks(path: Path, buckets: int = 64) -> list[float]:
     """Rough waveform envelope for the UI, as `buckets` values in 0..1.
 
     Decode to mono 8kHz signed 16-bit, then take the peak of each slice.
-    Downsampling to 8kHz is fine here because this is a picture of the sound,
+    Downsampling to 8kHz is fine because this is a picture of the sound,
     not something anyone listens to.
     """
     rate = 8000
-    result = _run(
+    result = await _run(
         [
             "ffmpeg", "-v", "error",
             "-i", str(path),
@@ -152,7 +152,7 @@ def waveform_peaks(path: Path, buckets: int = 64) -> list[float]:
         chunk = samples[start:start + per_bucket * 2]
         if not chunk:
             break
-        # Map signed 16-bit to 0..1.
+        # Map signed 16-bit into 0..1.
         best = 0.0
         for offset in range(0, len(chunk) - 1, 2):
             value = int.from_bytes(chunk[offset:offset + 2], "little", signed=True)
