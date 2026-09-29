@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.errors import AppError, error_response
 from app.core.logging import setup_logging
 from app.db.session import engine
-from app.api import auth
+from app.api import auth, channels
 
 setup_logging()
 
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PushTalk", lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(channels.router)
 
 app.add_middleware(
     CORSMiddleware,
