@@ -7,6 +7,7 @@ from app.api.deps import get_current_user, require_membership
 from app.core.errors import AppError
 from app.db.models import User
 from app.db.session import get_db
+from app.realtime.manager import manager
 from app.schemas.channel import ChannelCreate, ChannelOut, MemberOut
 from app.services import channel_service
 
@@ -55,7 +56,16 @@ async def list_members(
     session: AsyncSession = Depends(get_db),
 ):
     rows = await channel_service.list_members(session, channel_id)
+    # Presence lives in memory, not in the database. It is answered by this
+    # process only, so with more than one API instance a member can be online
+    # on another instance and still read as offline here. Redis presence would
+    # fix that and is out of scope for this commit.
     return [
-        MemberOut(id=user_id, username=username, joined_at=joined_at, online=False)
+        MemberOut(
+            id=user_id,
+            username=username,
+            joined_at=joined_at,
+            online=manager.is_online(str(user_id)),
+        )
         for user_id, username, joined_at in rows
     ]

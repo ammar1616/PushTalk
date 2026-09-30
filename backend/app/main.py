@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -9,24 +10,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.errors import AppError, error_response
 from app.core.logging import setup_logging
+from app.core.queue import get_redis
 from app.db.session import engine
-from app.api import auth, channels, messages
+from app.api import auth, channels, messages, ws
+from app.realtime.manager import listen
 
 setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once on startup, once on shutdown. Closing the engine on the way out
-    # is what lets Docker stop the container without hanging on open sockets.
-    yield
-    await engine.dispose()
+    # One Redis listener for the whole process, started here and cancelled on
+    # shutdown. Without it the API would never see events published by the
+    # worker. Closing the engine on the way out is what lets Docker stop the
+    # container without hanging on open sockets.
+    redis = await get_redis()
+    task = asyncio.create_task(listen(redis))
+    try:
+        yield
+    finally:
+        task.cancel()
+        await engine.dispose()
 
 
 app = FastAPI(title="PushTalk", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(channels.router)
 app.include_router(messages.router)
+app.include_router(ws.router)
 
 app.add_middleware(
     CORSMiddleware,
