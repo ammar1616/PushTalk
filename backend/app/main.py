@@ -12,7 +12,7 @@ from app.core.errors import AppError, error_response
 from app.core.logging import setup_logging
 from app.core.queue import get_redis
 from app.db.session import engine
-from app.api import auth, channels, messages, ws
+from app.api import auth, channels, media, messages, ws
 from app.realtime.manager import listen
 
 setup_logging()
@@ -37,6 +37,7 @@ app = FastAPI(title="PushTalk", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(channels.router)
 app.include_router(messages.router)
+app.include_router(media.router)
 app.include_router(ws.router)
 
 app.add_middleware(

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,15 +13,8 @@ from app.services import channel_service
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session: AsyncSession = Depends(get_db),
-) -> User:
-    if credentials is None or not credentials.credentials:
-        raise AppError("UNAUTHORIZED", "Sign in first.", 401)
-
-    user_id = decode_access_token(credentials.credentials)
+async def _user_from_token(request: Request, token: str, session: AsyncSession) -> User:
+    user_id = decode_access_token(token)
     if user_id is None:
         raise AppError("UNAUTHORIZED", "Your session has expired. Sign in again.", 401)
 
@@ -32,6 +25,34 @@ async def get_current_user(
     # The logging middleware reads this to add user_id to the request line.
     request.state.user_id = str(user.id)
     return user
+
+
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    session: AsyncSession = Depends(get_db),
+) -> User:
+    if credentials is None or not credentials.credentials:
+        raise AppError("UNAUTHORIZED", "Sign in first.", 401)
+    return await _user_from_token(request, credentials.credentials, session)
+
+
+async def get_current_user_allow_query_token(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    token: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_db),
+) -> User:
+    """Same check, but also accepts ?token= because <audio> cannot send headers.
+
+    Only the routes that genuinely need it use this. The header is still
+    tried first so a normal client never puts a credential in a URL, where it
+    would end up in browser history and referrer headers.
+    """
+    raw = credentials.credentials if credentials and credentials.credentials else token
+    if not raw:
+        raise AppError("UNAUTHORIZED", "Sign in first.", 401)
+    return await _user_from_token(request, raw, session)
 
 
 async def require_membership(

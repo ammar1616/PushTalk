@@ -29,7 +29,12 @@ services:
     volumes:
       - ./backend:/app
       - media:/media
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    # --no-access-log on purpose: uvicorn's own access log prints the raw
+    # request target, query string included, so every JWT we accept via
+    # ?token= would land in the logs in plaintext. The middleware in main.py
+    # already logs each request as JSON and logs request.url.path, which
+    # excludes the query, so this line was duplicate output and a leak.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log"
 
   worker:
     build: ./backend
