@@ -78,6 +78,13 @@ def message_payload(message: Message) -> dict:
         "failure_reason": message.failure_reason,
         "created_at": message.created_at.isoformat(),
         "sequence": message.sequence,
+        # Replayed messages carry no per-recipient counts. The client refetches
+        # history when it needs them, and guessing here would show a sender
+        # "sent" for a message everyone has already played.
+        "delivered_count": 0,
+        "played_count": 0,
+        "recipient_count": 0,
+        "aggregated_status": "sent",
     }
 
 
