@@ -340,3 +340,54 @@ input {
 .dot--online {
   background: #3ecf8e;
 }
+
+/* --- recorder ---------------------------------------------------------- */
+
+.recorder {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.recorder__button {
+  flex: none;
+  min-width: 9rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 600;
+  /* The button is held, not tapped: a long-press must not raise the OS
+     context menu or start a text selection. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.recorder__button--active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.recorder__timer {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.recorder__state {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.recorder__state--error {
+  color: var(--danger);
+}
+
+.recorder__toast {
+  font-size: 0.85rem;
+  color: var(--danger);
+}

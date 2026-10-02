@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as api from "../api/client";
 import { ApiError } from "../api/client";
 import type { Channel, Member, Message } from "../api/types";
+import HoldToRecordButton from "../components/HoldToRecordButton";
 import MessageList from "../components/MessageList";
 import OnlineMembers from "../components/OnlineMembers";
 
@@ -98,6 +99,16 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
               onLoadOlder={() => void loadOlder()}
             />
           )}
+          <HoldToRecordButton
+            channelId={channelId}
+            onSent={(message) =>
+              // The upload returns the pending row, so the transcript shows it
+              // without waiting for the worker. It goes to the front because the
+              // list is held newest-first, and it replaces the later copy the
+              // worker event brings, matched on id.
+              setMessages((current) => [message, ...current.filter((existing) => existing.id !== message.id)])
+            }
+          />
         </div>
         <OnlineMembers members={members} />
       </div>

@@ -98,7 +98,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  if (init.body !== undefined && !headers.has("Content-Type")) {
+  // Only label a body as JSON. A FormData body must be left alone: the browser
+  // generates `multipart/form-data; boundary=...` itself, and a Content-Type of
+  // application/json here would delete the boundary and the server would fail
+  // to parse the upload.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (init.body !== undefined && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -184,6 +189,21 @@ export function markDelivered(messageId: string): Promise<StatusAck> {
 
 export function markPlayed(messageId: string): Promise<StatusAck> {
   return request<StatusAck>(`/messages/${messageId}/played`, { method: "POST" });
+}
+
+/**
+ * Upload a recorded clip.
+ *
+ * The blob is sent as-is and the filename is derived from the blob's own MIME
+ * type. The server measures duration with ffprobe and re-encodes with ffmpeg,
+ * so nothing here is trusted: the extension only has to be plausible for the
+ * multipart part, and the recorded duration is never sent at all.
+ */
+export function uploadMessage(channelId: string, blob: Blob): Promise<Message> {
+  const form = new FormData();
+  const extension = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+  form.append("audio", blob, `recording.${extension}`);
+  return request<Message>(`/channels/${channelId}/messages`, { method: "POST", body: form });
 }
 
 /** URL of a message's normalized audio, with the token as a query param. */
