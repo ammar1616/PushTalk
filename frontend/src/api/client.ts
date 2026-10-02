@@ -1,4 +1,15 @@
-import type { ApiErrorEnvelope, LoginRequest, SignupRequest, TokenResponse, User } from "./types";
+import type {
+  ApiErrorEnvelope,
+  Channel,
+  ChannelCreate,
+  LoginRequest,
+  Member,
+  Message,
+  SignupRequest,
+  StatusAck,
+  TokenResponse,
+  User,
+} from "./types";
 
 const TOKEN_KEY = "pushtalk.token";
 
@@ -117,6 +128,62 @@ export function login(body: LoginRequest): Promise<TokenResponse> {
 
 export function me(): Promise<User> {
   return request<User>("/auth/me");
+}
+
+// --- channels -----------------------------------------------------------
+
+export function listChannels(): Promise<Channel[]> {
+  return request<Channel[]>("/channels");
+}
+
+export function createChannel(body: ChannelCreate): Promise<Channel> {
+  return request<Channel>("/channels", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function joinChannel(channelId: string): Promise<void> {
+  // 204, so there is no body to parse. Going through request() rather than a
+  // bare fetch keeps the Authorization header and error unwrapping in one
+  // place instead of two.
+  return request<void>(`/channels/${channelId}/join`, { method: "POST" });
+}
+
+export function listMembers(channelId: string): Promise<Member[]> {
+  return request<Member[]>(`/channels/${channelId}/members`);
+}
+
+// --- messages -----------------------------------------------------------
+
+/**
+ * One page of history, newest first.
+ *
+ * `before` is the ISO timestamp of the oldest row already held. It is sent
+ * without a sequence, so the backend applies its strict `created_at < before`
+ * rule; see the note on the keyset cursor in the backend. Pass a timestamp
+ * taken from the row itself, never `new Date()`, or a row written in the same
+ * millisecond is skipped.
+ */
+export function listMessages(channelId: string, before: string | null, limit = 50): Promise<Message[]> {
+  const query = new URLSearchParams();
+  if (before !== null) {
+    query.set("before", before);
+  }
+  query.set("limit", String(limit));
+  return request<Message[]>(`/channels/${channelId}/messages?${query.toString()}`);
+}
+
+export function getMessage(messageId: string): Promise<Message> {
+  return request<Message>(`/messages/${messageId}`);
+}
+
+export function markDelivered(messageId: string): Promise<StatusAck> {
+  return request<StatusAck>(`/messages/${messageId}/delivered`, { method: "POST" });
+}
+
+export function markPlayed(messageId: string): Promise<StatusAck> {
+  return request<StatusAck>(`/messages/${messageId}/played`, { method: "POST" });
 }
 
 /** URL of a message's normalized audio, with the token as a query param. */
