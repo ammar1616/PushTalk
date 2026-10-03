@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "../api/client";
 import { ApiError } from "../api/client";
 import type { Channel, Member, Message } from "../api/types";
+import AudioUnlockOverlay from "../components/AudioUnlockOverlay";
 import HoldToRecordButton from "../components/HoldToRecordButton";
 import MessageList from "../components/MessageList";
 import OnlineMembers from "../components/OnlineMembers";
+import { usePlaybackQueue } from "../playback/usePlaybackQueue";
 
 export interface ChannelPageProps {
   /** The full row, so the header has a name without a second request. */
@@ -24,6 +26,18 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
   const [loading, setLoading] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+
+  const { enqueue, pause, resume, clear, unlock, unlocked, playingId, pendingCount } = usePlaybackQueue(
+    currentUserId,
+    (item) => {
+      // Best effort: a failed status write must not disturb playback.
+      void api.markPlayed(item.id).catch(() => {});
+    },
+  );
+
+  // Ids held when the channel opened are history, not new arrivals, so they are
+  // never replayed. Anything added afterwards is enqueued.
+  const historyIdsRef = useRef<Set<string> | null>(null);
 
   // The page holds newest-first, as the API returns it, so appending an older
   // page and reversing at render time is a concatenation rather than a merge.
@@ -50,6 +64,36 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => {
+    historyIdsRef.current = null;
+    clear();
+  }, [channelId, clear]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (historyIdsRef.current === null) {
+      // First completed load: this is the baseline, not new audio.
+      historyIdsRef.current = new Set(messages.map((message) => message.id));
+      return;
+    }
+    const known = historyIdsRef.current;
+    // Oldest-first so the queue receives them in the order they were sent.
+    for (const message of [...messages].reverse()) {
+      if (known.has(message.id)) {
+        continue;
+      }
+      known.add(message.id);
+      enqueue({
+        id: message.id,
+        sequence: message.sequence,
+        url: api.mediaUrl(message.id),
+        senderId: message.sender_id,
+      });
+    }
+  }, [messages, loading, enqueue]);
 
   const loadOlder = useCallback(async () => {
     setLoadingOlder(true);
@@ -88,6 +132,8 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
 
       <div className="channel">
         <div className="channel__main">
+          {playingId !== null && <p className="muted">Playing a message...</p>}
+          {pendingCount > 0 && <p className="muted">{pendingCount} waiting to play</p>}
           {loading ? (
             <p className="muted">Loading messages...</p>
           ) : (
@@ -101,6 +147,7 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
           )}
           <HoldToRecordButton
             channelId={channelId}
+            onRecordingChange={(active) => (active ? pause() : resume())}
             onSent={(message) =>
               // The upload returns the pending row, so the transcript shows it
               // without waiting for the worker. It goes to the front because the
@@ -112,6 +159,8 @@ export default function ChannelPage({ channel, currentUserId, onBack }: ChannelP
         </div>
         <OnlineMembers members={members} />
       </div>
+
+      {!unlocked && <AudioUnlockOverlay onUnlock={unlock} />}
     </main>
   );
 }

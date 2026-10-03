@@ -9,11 +9,13 @@ export interface HoldToRecordButtonProps {
   channelId: string;
   /** Called with the pending message so the transcript shows it right away. */
   onSent(message: Message): void;
+  /** Tells the page to hold playback while the microphone is open. */
+  onRecordingChange?(recording: boolean): void;
 }
 
 type SendState = "idle" | "sending" | "sent" | "error";
 
-export default function HoldToRecordButton({ channelId, onSent }: HoldToRecordButtonProps) {
+export default function HoldToRecordButton({ channelId, onSent, onRecordingChange }: HoldToRecordButtonProps) {
   const { recording, elapsedMs, supported, start, stop, cancel } = useRecorder();
   const [toast, setToast] = useState<string | null>(null);
   const [sendState, setSendState] = useState<SendState>("idle");
@@ -76,6 +78,13 @@ export default function HoldToRecordButton({ channelId, onSent }: HoldToRecordBu
       }
     };
   }, [recording, finish]);
+
+  // Playback must not start while the mic is open. Reporting the recorder's
+  // own state keeps that rule in one place rather than duplicating it at each
+  // start/finish/cancel site.
+  useEffect(() => {
+    onRecordingChange?.(recording);
+  }, [recording, onRecordingChange]);
 
   if (!supported) {
     return <p className="muted">This browser cannot record audio.</p>;
